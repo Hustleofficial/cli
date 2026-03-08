@@ -7,7 +7,8 @@
     "base44": "./bin/run.js"
   },
   "files": [
-    "dist",
+    "dist/cli",
+    "dist/assets",
     "bin"
   ],
   "scripts": {
