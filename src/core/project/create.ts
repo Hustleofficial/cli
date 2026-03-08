@@ -45,11 +45,7 @@ export async function createProjectFiles(
   const { projectId } = await createProject(name, description);
 
   // Render the template to the destination path
-  await renderTemplate(template, basePath, {
-    name,
-    description,
-    projectId,
-  });
+  await renderTemplate(template, basePath, { name, description, projectId });
 
   return {
     projectId,

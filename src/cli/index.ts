@@ -1,11 +1,18 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createProgram } from "@/cli/program.js";
+import { ensureNpmAssets } from "@/core/assets.js";
 import { readAuth } from "@/core/auth/index.js";
 import { CLIExitError } from "./errors.js";
 import { ErrorReporter } from "./telemetry/error-reporter.js";
 import { addCommandInfoToErrorReporter } from "./telemetry/index.js";
 import type { CLIContext } from "./types.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 async function runCLI(): Promise<void> {
+  ensureNpmAssets(join(__dirname, "../assets"));
+
   // Create error reporter - single instance for the CLI session
   const errorReporter = new ErrorReporter();
 
@@ -14,7 +21,10 @@ async function runCLI(): Promise<void> {
 
   // Create context for dependency injection
   const isNonInteractive = !process.stdin.isTTY || !process.stdout.isTTY;
-  const context: CLIContext = { errorReporter, isNonInteractive };
+  const context: CLIContext = {
+    errorReporter,
+    isNonInteractive,
+  };
 
   // Create program with injected context
   const program = createProgram(context);

@@ -3,6 +3,7 @@ import { createDevServer } from "@/cli/dev/dev-server/main.js";
 import type { CLIContext } from "@/cli/types.js";
 import { runCommand, theme } from "@/cli/utils/index.js";
 import type { RunCommandResult } from "@/cli/utils/runCommand.js";
+import { getDenoWrapperPath } from "@/core/assets.js";
 import { readProjectConfig } from "@/core/project/config.js";
 
 interface DevOptions {
@@ -13,6 +14,7 @@ async function devAction(options: DevOptions): Promise<RunCommandResult> {
   const port = options.port ? Number(options.port) : undefined;
   const { port: resolvedPort } = await createDevServer({
     port,
+    denoWrapperPath: getDenoWrapperPath(),
     loadResources: async () => {
       const { functions, entities, project } = await readProjectConfig();
       return { functions, entities, project };

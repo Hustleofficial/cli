@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 import ejs from "ejs";
 import frontmatter from "front-matter";
 import { globby } from "globby";
-import { getTemplatesDir, getTemplatesIndexPath } from "@/core/config.js";
+import { getTemplatesDir, getTemplatesIndexPath } from "@/core/assets.js";
 import { SchemaValidationError } from "@/core/errors.js";
 import type { Template } from "@/core/project/schema.js";
 import { TemplatesConfigSchema } from "@/core/project/schema.js";
@@ -19,14 +19,15 @@ interface TemplateFrontmatter {
 }
 
 export async function listTemplates(): Promise<Template[]> {
-  const parsed = await readJsonFile(getTemplatesIndexPath());
+  const indexPath = getTemplatesIndexPath();
+  const parsed = await readJsonFile(indexPath);
   const result = TemplatesConfigSchema.safeParse(parsed);
 
   if (!result.success) {
     throw new SchemaValidationError(
       "Invalid templates configuration",
       result.error,
-      getTemplatesIndexPath(),
+      indexPath,
     );
   }
 

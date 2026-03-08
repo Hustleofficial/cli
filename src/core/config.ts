@@ -1,6 +1,5 @@
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   PROJECT_SUBDIR,
   TYPES_FILENAME,
@@ -11,24 +10,12 @@ import {
   TestOverridesSchema,
 } from "@/core/project/schema.js";
 
-// After bundling, import.meta.url points to dist/cli/index.js
-// Templates are copied to dist/templates/
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 function getBase44GlobalDir(): string {
   return join(homedir(), ".base44");
 }
 
 export function getAuthFilePath(): string {
   return join(getBase44GlobalDir(), "auth", "auth.json");
-}
-
-export function getTemplatesDir(): string {
-  return join(__dirname, "../templates");
-}
-
-export function getTemplatesIndexPath(): string {
-  return join(getTemplatesDir(), "templates.json");
 }
 
 export function getAppConfigPath(projectRoot: string): string {
