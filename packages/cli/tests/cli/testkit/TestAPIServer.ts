@@ -98,6 +98,20 @@ interface ConnectorRemoveResponse {
   integration_type: string;
 }
 
+interface StripeInstallResponse {
+  already_installed: boolean;
+  claim_url: string | null;
+}
+
+interface StripeStatusResponse {
+  stripe_mode: "sandbox" | "live" | null;
+  sandbox_claim_url?: string | null;
+}
+
+interface StripeRemoveResponse {
+  success: boolean;
+}
+
 interface AvailableIntegrationsListResponse {
   integrations: Array<{
     integration_type: string;
@@ -354,6 +368,32 @@ export class TestAPIServer {
     );
   }
 
+  // ─── STRIPE ENDPOINTS ──────────────────────────────────────
+
+  mockStripeInstall(response: StripeInstallResponse): this {
+    return this.addRoute(
+      "POST",
+      `/api/apps/${this.appId}/payments/stripe/install`,
+      response,
+    );
+  }
+
+  mockStripeStatus(response: StripeStatusResponse): this {
+    return this.addRoute(
+      "GET",
+      `/api/apps/${this.appId}/payments/stripe/status`,
+      response,
+    );
+  }
+
+  mockStripeRemove(response: StripeRemoveResponse): this {
+    return this.addRoute(
+      "DELETE",
+      `/api/apps/${this.appId}/payments/stripe`,
+      response,
+    );
+  }
+
   mockFunctionLogs(functionName: string, response: FunctionLogsResponse): this {
     return this.addRoute(
       "GET",
@@ -497,6 +537,14 @@ export class TestAPIServer {
     return this.addErrorRoute(
       "PUT",
       `/api/apps/${this.appId}/external-auth/integrations/:type`,
+      error,
+    );
+  }
+
+  mockStripeInstallError(error: ErrorResponse): this {
+    return this.addErrorRoute(
+      "POST",
+      `/api/apps/${this.appId}/payments/stripe/install`,
       error,
     );
   }
