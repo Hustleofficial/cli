@@ -38,6 +38,7 @@ jobs:
         with:
           app-id: ${{ vars.BASE44_GITHUB_ACTIONS_APP_ID }}
           private-key: ${{ secrets.BASE44_GITHUB_ACTIONS_APP_PRIVATE_KEY }}
+          owner: base44
 
       - name: Checkout code
         uses: actions/checkout@v4
