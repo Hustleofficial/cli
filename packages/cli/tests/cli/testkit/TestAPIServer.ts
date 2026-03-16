@@ -75,6 +75,69 @@ interface SecretsDeleteResponse {
   success: boolean;
 }
 
+interface SingleFunctionDeployResponse {
+  status: "deployed" | "unchanged";
+}
+
+interface AutomationBase {
+  name: string;
+  description?: string | null;
+  function_args?: Record<string, unknown> | null;
+  is_active?: boolean;
+}
+
+interface ScheduledOneTimeAutomation extends AutomationBase {
+  type: "scheduled";
+  schedule_mode: "one-time";
+  one_time_date: string;
+}
+
+interface ScheduledCronAutomation extends AutomationBase {
+  type: "scheduled";
+  schedule_mode: "recurring";
+  schedule_type: "cron";
+  cron_expression: string;
+  ends_type?: "never" | "on" | "after";
+  ends_on_date?: string | null;
+  ends_after_count?: number | null;
+}
+
+interface ScheduledSimpleAutomation extends AutomationBase {
+  type: "scheduled";
+  schedule_mode: "recurring";
+  schedule_type: "simple";
+  repeat_unit: "minutes" | "hours" | "days" | "weeks" | "months";
+  repeat_interval?: number;
+  start_time?: string | null;
+  repeat_on_days?: number[] | null;
+  repeat_on_day_of_month?: number | null;
+  ends_type?: "never" | "on" | "after";
+  ends_on_date?: string | null;
+  ends_after_count?: number | null;
+}
+
+interface EntityAutomation extends AutomationBase {
+  type: "entity";
+  entity_name: string;
+  event_types: Array<"create" | "update" | "delete">;
+}
+
+type AutomationData =
+  | ScheduledOneTimeAutomation
+  | ScheduledCronAutomation
+  | ScheduledSimpleAutomation
+  | EntityAutomation;
+
+interface FunctionsListResponse {
+  functions: Array<{
+    name: string;
+    deployment_id: string;
+    entry: string;
+    files: Array<{ path: string; content: string }>;
+    automations: AutomationData[];
+  }>;
+}
+
 interface ConnectorsListResponse {
   integrations: Array<{
     integration_type: string;
@@ -295,6 +358,35 @@ export class TestAPIServer {
     );
   }
 
+  mockFunctionsList(response: FunctionsListResponse): this {
+    return this.addRoute(
+      "GET",
+      `/api/apps/${this.appId}/backend-functions`,
+      response,
+    );
+  }
+
+  /** Mock DELETE /api/apps/{appId}/backend-functions/{name} - Delete single function */
+  mockSingleFunctionDelete(): this {
+    this.pendingRoutes.push({
+      method: "DELETE",
+      path: `/api/apps/${this.appId}/backend-functions/:name`,
+      handler: (_req, res) => {
+        res.status(204).end();
+      },
+    });
+    return this;
+  }
+
+  /** Mock PUT /api/apps/{appId}/backend-functions/{name} - Deploy single function */
+  mockSingleFunctionDeploy(response: SingleFunctionDeployResponse): this {
+    return this.addRoute(
+      "PUT",
+      `/api/apps/${this.appId}/backend-functions/:name`,
+      response,
+    );
+  }
+
   mockSiteDeploy(response: SiteDeployResponse): this {
     return this.addRoute(
       "POST",
@@ -461,10 +553,28 @@ export class TestAPIServer {
     );
   }
 
-  mockFunctionsPushError(error: ErrorResponse): this {
+  mockFunctionsListError(error: ErrorResponse): this {
+    return this.addErrorRoute(
+      "GET",
+      `/api/apps/${this.appId}/backend-functions`,
+      error,
+    );
+  }
+
+  /** Mock single function deploy to return an error */
+  mockSingleFunctionDeployError(error: ErrorResponse): this {
     return this.addErrorRoute(
       "PUT",
-      `/api/apps/${this.appId}/backend-functions`,
+      `/api/apps/${this.appId}/backend-functions/:name`,
+      error,
+    );
+  }
+
+  /** Mock single function delete to return an error */
+  mockSingleFunctionDeleteError(error: ErrorResponse): this {
+    return this.addErrorRoute(
+      "DELETE",
+      `/api/apps/${this.appId}/backend-functions/:name`,
       error,
     );
   }

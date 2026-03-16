@@ -84,21 +84,38 @@ const BackendFunctionSchema = FunctionConfigSchema.extend({
   filePaths: z.array(z.string()).min(1, "Function must have at least one file"),
 });
 
-export const DeployFunctionsResponseSchema = z.object({
-  deployed: z.array(z.string()),
-  deleted: z.array(z.string()),
-  skipped: z.array(z.string()).optional().nullable(),
-  errors: z
-    .array(z.object({ name: z.string(), message: z.string() }))
-    .nullable(),
+export const DeploySingleFunctionResponseSchema = z.object({
+  status: z.enum(["deployed", "unchanged"]),
+});
+
+const FunctionInfoSchema = z
+  .object({
+    name: z.string(),
+    deployment_id: z.string(),
+    entry: z.string(),
+    files: z.array(FunctionFileSchema),
+    automations: z.array(AutomationSchema),
+  })
+  .transform((data) => ({
+    name: data.name,
+    deploymentId: data.deployment_id,
+    entry: data.entry,
+    files: data.files,
+    automations: data.automations,
+  }));
+
+export const ListFunctionsResponseSchema = z.object({
+  functions: z.array(FunctionInfoSchema),
 });
 
 export type FunctionConfig = z.infer<typeof FunctionConfigSchema>;
 export type BackendFunction = z.infer<typeof BackendFunctionSchema>;
 export type FunctionFile = z.infer<typeof FunctionFileSchema>;
-export type DeployFunctionsResponse = z.infer<
-  typeof DeployFunctionsResponseSchema
+export type DeploySingleFunctionResponse = z.infer<
+  typeof DeploySingleFunctionResponseSchema
 >;
+export type FunctionInfo = z.infer<typeof FunctionInfoSchema>;
+export type ListFunctionsResponse = z.infer<typeof ListFunctionsResponseSchema>;
 
 export type FunctionWithCode = Omit<BackendFunction, "filePaths"> & {
   files: FunctionFile[];
