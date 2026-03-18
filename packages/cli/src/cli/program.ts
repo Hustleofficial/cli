@@ -17,6 +17,7 @@ import { getTypesCommand } from "@/cli/commands/types/index.js";
 import { Base44Command } from "@/cli/utils/index.js";
 import packageJson from "../../package.json";
 import { getDevCommand } from "./commands/dev.js";
+import { getExecCommand } from "./commands/exec.js";
 import { getEjectCommand } from "./commands/project/eject.js";
 import type { CLIContext } from "./types.js";
 
@@ -73,6 +74,9 @@ export function createProgram(context: CLIContext): Command {
 
   // Register types command
   program.addCommand(getTypesCommand());
+
+  // Register exec command
+  program.addCommand(getExecCommand());
 
   // Register development commands
   program.addCommand(getDevCommand(), { hidden: true });
