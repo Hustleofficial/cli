@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 import { dirname, join } from "node:path";
-import { log as clackLog } from "@clack/prompts";
+import type { Logger } from "@base44-cli/logger";
 import cors from "cors";
 import express from "express";
 import getPort from "get-port";
@@ -28,6 +28,7 @@ const DEFAULT_PORT = 4400;
 const BASE44_APP_URL = "https://base44.app";
 
 interface DevServerOptions {
+  log: Logger;
   port?: number;
   denoWrapperPath: string;
   loadResources: () => Promise<{
@@ -87,7 +88,7 @@ export async function createDevServer(
   app.use("/api/apps/:appId/functions", functionRoutes);
 
   if (functionManager.getFunctionNames().length > 0) {
-    clackLog.info(
+    options.log.info(
       `Loaded functions: ${functionManager.getFunctionNames().join(", ")}`,
     );
   }
@@ -95,7 +96,7 @@ export async function createDevServer(
   const db = new Database();
   await db.load(entities);
   if (db.getCollectionNames().length > 0) {
-    clackLog.info(`Loaded entities: ${db.getCollectionNames().join(", ")}`);
+    options.log.info(`Loaded entities: ${db.getCollectionNames().join(", ")}`);
   }
 
   // Socket.IO is attached after the HTTP server starts; entity routes receive
