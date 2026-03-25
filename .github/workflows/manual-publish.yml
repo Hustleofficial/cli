@@ -114,11 +114,12 @@ jobs:
 
       - name: Publish to NPM
         working-directory: ${{ env.CLI_PACKAGE_DIR }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
-          bun publish --tag ${{ github.event.inputs.npm_tag }} ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          # Strip workspace: deps (npm can't handle them, they're bundled anyway)
+          cp package.json package.json.bak
+          sed -i '/"workspace:/d' package.json
+          npm publish --tag ${{ github.event.inputs.npm_tag }} ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          mv package.json.bak package.json
 
       - name: Create Git tag
         if: github.event.inputs.dry_run == 'false'

@@ -121,8 +121,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
-          if bun publish --tag preview; then
+          # Strip workspace: deps (npm can't handle them, they're bundled anyway)
+          sed -i '/"workspace:/d' package.json
+          if npm publish --tag preview; then
             echo "✅ Package published successfully"
           else
             echo "❌ Package publish failed"
