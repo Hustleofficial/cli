@@ -121,8 +121,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Strip workspace: deps (npm can't handle them, they're bundled anyway)
-          sed -i '/"workspace:/d' package.json
+          # Remove devDependencies before publish (everything is bundled)
+          jq 'del(.devDependencies)' package.json > package.json.tmp && mv package.json.tmp package.json
           if npm publish --tag preview; then
             echo "✅ Package published successfully"
           else
