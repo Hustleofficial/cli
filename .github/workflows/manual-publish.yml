@@ -114,7 +114,10 @@ jobs:
 
       - name: Publish to NPM
         working-directory: ${{ env.CLI_PACKAGE_DIR }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
           bun publish --tag ${{ github.event.inputs.npm_tag }} ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
 
       - name: Create Git tag
