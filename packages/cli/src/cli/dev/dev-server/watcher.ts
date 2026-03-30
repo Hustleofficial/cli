@@ -2,8 +2,8 @@ import { EventEmitter } from "node:events";
 import { relative } from "node:path";
 import { type FSWatcher, watch } from "chokidar";
 import debounce from "lodash/debounce";
+import type { DevLogger } from "@/cli/dev/createDevLogger.js";
 import { pathExists } from "@/core/utils/fs.js";
-import type { Logger } from "../createDevLogger.js";
 
 const WATCH_DEBOUNCE_MS = 300;
 const WATCH_QUEUE_DELAY_MS = 500;
@@ -21,7 +21,7 @@ export class WatchBase44<T extends string> extends EventEmitter<
 
   constructor(
     private itemsToWatch: Record<T, string>,
-    private logger: Logger,
+    private logger: DevLogger,
   ) {
     super();
     this.entryNames = Object.keys(itemsToWatch) as T[];
@@ -99,10 +99,7 @@ export class WatchBase44<T extends string> extends EventEmitter<
       }, WATCH_DEBOUNCE_MS),
     );
     watcher.on("error", (err) => {
-      this.logger.error(
-        `Watch handler failed for ${targetPath}`,
-        err instanceof Error ? err : undefined,
-      );
+      this.logger.error(`Watch handler failed for ${targetPath}`, err);
     });
     return watcher;
   }

@@ -3,20 +3,26 @@ import type { Request, Response, Router } from "express";
 import { Router as createRouter, json } from "express";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
-import type { Logger } from "@/cli/dev/createDevLogger.js";
-import { type Database, USER_COLLECTION } from "../../db/database.js";
+import type { DevLogger } from "@/cli/dev/createDevLogger.js";
+import {
+  type Database,
+  USER_COLLECTION,
+} from "@/cli/dev/dev-server/db/database.js";
 import {
   type EntityRecord,
   EntityValidationError,
-} from "../../db/validator.js";
-import { getNowISOTimestamp, stripInternalFields } from "../../utils.js";
+} from "@/cli/dev/dev-server/db/validator.js";
+import {
+  getNowISOTimestamp,
+  stripInternalFields,
+} from "@/cli/dev/dev-server/utils.js";
 
 type UserDocument = Document<{
   email: string;
   id: string;
 }>;
 
-export function createUserRouter(db: Database, logger: Logger): Router {
+export function createUserRouter(db: Database, logger: DevLogger): Router {
   const router = createRouter({ mergeParams: true });
   const parseBody = json();
 

@@ -2,32 +2,50 @@ import { theme } from "@/cli/utils/theme";
 
 type LogType = "log" | "error" | "warn";
 
-export interface Logger {
-  log: (msg: string) => void;
-  error: (msg: string, err?: unknown) => void;
-  warn: (msg: string) => void;
+export interface DevLogger {
+  log: (...args: unknown[]) => void;
+  error: (msg: unknown, err?: unknown) => void;
+  warn: (...args: unknown[]) => void;
 }
 
-const colorByType: Record<LogType, (text: string) => string> = {
+const colorByType: Record<LogType, (text: unknown) => unknown> = {
   error: theme.styles.error,
   warn: theme.styles.warn,
-  log: (text: string) => text,
+  log: (input: unknown) => input,
 };
 
-export function createDevLogger(): Logger {
-  const print = (type: LogType, msg: string) => {
+const stringify = (item: unknown): string => {
+  if (typeof item === "string") {
+    return item;
+  }
+  if (item instanceof Error) {
+    return item.toString();
+  }
+  try {
+    return JSON.stringify(item, null, 2) ?? String(item);
+  } catch {
+    return String(item);
+  }
+};
+
+export function createDevLogger(): DevLogger {
+  const print = (type: LogType, ...args: unknown[]) => {
     const colorize = colorByType[type];
-    console[type](colorize(msg));
+    console[type](
+      ...args.map((item) => {
+        return colorize(stringify(item));
+      }),
+    );
   };
 
   return {
-    log: (msg: string) => print("log", msg),
-    error: (msg: string, err?: unknown) => {
+    log: (...args: unknown[]) => print("log", ...args),
+    error: (msg: unknown, err?: unknown) => {
       print("error", msg);
       if (err) {
-        print("error", String(err));
+        print("error", err);
       }
     },
-    warn: (msg: string) => print("warn", msg),
+    warn: (...args: unknown[]) => print("warn", ...args),
   };
 }
