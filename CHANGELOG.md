@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.0.50] - 2026-03-30
+
+### Added
+
+- Non-interactive `runTask` function for programmatic task execution (#441)
+- Windows test runner (#454)
+
+### Changed
+
+- Rename dev logger (#443)
+
+### Fixed
+
+- Classify auth timeout as `AuthExpiredError` (#453)
+
+## [0.0.49] - 2026-03-27
+
+### Changed
+
+- Show auth command in top-level help (#444)
+- Remove devDependencies before publish
+
+## [0.0.48] - 2026-03-25
+
+### Added
+
+- `auth password-login`, `pull`, and `push` commands (#422)
+- User entity schema support in local dev (#406)
+
+### Changed
+
+- Refactor logger to simple logger (#425)
+- Make `logs` command discoverable in help output (#432)
+- Add local dev media tests (#439)
+- Set up infrastructure for dev tests (#428)
+
+### Fixed
+
+- URL-encode function name in `fetchFunctionLogs` to fix 404 for zero-config functions (#429)
+
 ## [0.0.46] - 2026-03-18
 
 ### Added
@@ -27,6 +67,10 @@
 ### Removed
 
 - Revert simplified root README to monorepo overview (#405)
+
+## [0.0.44] - 2026-03-11
+
+_Maintenance release with publishing workflow fixes_
 
 ## [0.0.43] - 2026-03-11
 
