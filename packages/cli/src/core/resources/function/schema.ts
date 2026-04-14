@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IntegrationTypeSchema } from "@/core/resources/connector/schema.js";
 
 const FunctionNameSchema = z
   .string()
@@ -65,12 +66,75 @@ const EntityAutomationSchema = AutomationBaseSchema.extend({
     .min(1, "At least one event type is required"),
 });
 
+// Known operators — kept in sync with backend ConditionOperator enum.
+// The union with z.string() ensures unknown future operators still parse.
+const KnownConditionOperators = [
+  "equals",
+  "not_equals",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "contains",
+  "not_contains",
+  "starts_with",
+  "ends_with",
+  "in_list",
+  "not_in_list",
+  "exists",
+  "not_exists",
+  "is_empty",
+  "is_not_empty",
+] as const;
+
+const ConditionOperatorSchema = z.union([
+  z.enum(KnownConditionOperators),
+  z.string().min(1),
+]);
+
+// Trigger condition (field-level filter)
+const TriggerConditionSchema = z.object({
+  field: z.string().min(1),
+  operator: ConditionOperatorSchema,
+  value: z.unknown().nullable().optional(),
+});
+
+const TriggerLogicSchema = z.enum(["and", "or"]);
+
+type TriggerCondition = z.infer<typeof TriggerConditionSchema>;
+type TriggerConditionGroup = {
+  logic?: z.infer<typeof TriggerLogicSchema>;
+  conditions: Array<TriggerCondition | TriggerConditionGroup>;
+};
+
+// Recursive condition group for trigger filtering.
+const TriggerConditionGroupSchema: z.ZodType<TriggerConditionGroup> = z.lazy(
+  () =>
+    z.object({
+      logic: TriggerLogicSchema.optional(),
+      conditions: z
+        .array(z.union([TriggerConditionSchema, TriggerConditionGroupSchema]))
+        .min(1),
+    }),
+);
+
+// Connector automation (webhook-triggered)
+const ConnectorAutomationSchema = AutomationBaseSchema.extend({
+  type: z.literal("connector"),
+  integration_type: IntegrationTypeSchema,
+  // No .min(1) — empty means catch-all; the server enforces per-integration.
+  events: z.array(z.string()),
+  resource_id: z.string().nullable().optional(),
+  trigger_conditions: TriggerConditionGroupSchema.nullable().optional(),
+});
+
 // Union of all automation types
 const AutomationSchema = z.union([
   ScheduledOneTimeSchema,
   ScheduledCronSchema,
   ScheduledSimpleSchema,
   EntityAutomationSchema,
+  ConnectorAutomationSchema,
 ]);
 
 export const FunctionConfigSchema = z.object({
