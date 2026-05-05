@@ -98,7 +98,7 @@ describe("functions deploy command", () => {
 
     const result = await t.run("functions", "deploy");
 
-    t.expectResult(result).toSucceed();
+    t.expectResult(result).toFail();
     t.expectResult(result).toContain("error");
     t.expectResult(result).toContain("1 error");
   });
@@ -114,7 +114,7 @@ describe("functions deploy command", () => {
 
     const result = await t.run("functions", "deploy");
 
-    t.expectResult(result).toSucceed();
+    t.expectResult(result).toFail();
     t.expectResult(result).toContain("error");
     t.expectResult(result).toContain(
       "Minimum interval for minute-based schedules is 5 minutes.",
@@ -132,7 +132,7 @@ describe("functions deploy command", () => {
 
     const result = await t.run("functions", "deploy");
 
-    t.expectResult(result).toSucceed();
+    t.expectResult(result).toFail();
     t.expectResult(result).toContain("error");
     t.expectResult(result).toContain(
       "Maximum of 50 functions per app reached.",
@@ -153,5 +153,32 @@ describe("functions deploy command", () => {
     t.expectResult(result).toContain(
       "--force cannot be used when specifying function names",
     );
+  });
+
+  it("does not prune remote functions with --force when a function fails", async () => {
+    await t.givenLoggedInWithProject(fixture("with-functions-and-entities"));
+    t.api.mockSingleFunctionDeployError({
+      status: 400,
+      body: { error: "Invalid function code" },
+    });
+    // If prune ran, it would call this endpoint and surface "orphan-fn" in the
+    // output via the "Found N remote functions to delete" log line.
+    t.api.mockFunctionsList({
+      functions: [
+        {
+          name: "orphan-fn",
+          deployment_id: "dep_orphan",
+          entry: "index.ts",
+          files: [],
+          automations: [],
+        },
+      ],
+    });
+
+    const result = await t.run("functions", "deploy", "--force");
+
+    t.expectResult(result).toFail();
+    t.expectResult(result).toContain("1 error");
+    t.expectResult(result).toNotContain("orphan-fn");
   });
 });
