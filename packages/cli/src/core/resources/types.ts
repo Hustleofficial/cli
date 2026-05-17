@@ -1,3 +1,15 @@
+import { z } from "zod";
+
+export const ResourceSourceSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("project"),
+  }),
+  z.object({
+    type: z.literal("plugin"),
+    namespace: z.string().min(1, "Plugin namespace cannot be empty"),
+  }),
+]);
+
 /**
  * Base interface for all project resources (entities, functions, etc.).
  * Resources are project-specific collections that can be loaded from the filesystem

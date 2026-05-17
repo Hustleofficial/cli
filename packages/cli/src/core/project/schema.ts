@@ -19,6 +19,22 @@ const SiteConfigSchema = z.object({
   installCommand: z.string().optional(),
 });
 
+const PluginMetadataSchema = z.object({
+  namespace: z
+    .string()
+    .min(1, "Plugin namespace cannot be empty")
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      "Plugin namespace can only contain letters, numbers, underscores, and dashes",
+    ),
+});
+
+export const PluginReferenceSchema = z.object({
+  source: z.string().min(1, "Plugin source cannot be empty"),
+});
+
+export type PluginReference = z.infer<typeof PluginReferenceSchema>;
+
 export const ProjectConfigSchema = z.object({
   name: z
     .string({
@@ -32,6 +48,8 @@ export const ProjectConfigSchema = z.object({
   agentsDir: z.string().optional().default("agents"),
   connectorsDir: z.string().optional().default("connectors"),
   authDir: z.string().optional().default("auth"),
+  plugin: PluginMetadataSchema.optional(),
+  plugins: z.array(PluginReferenceSchema).optional().default([]),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;

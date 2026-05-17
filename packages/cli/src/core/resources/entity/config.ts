@@ -1,6 +1,6 @@
 import { globby } from "globby";
 import { CONFIG_FILE_EXTENSION_GLOB } from "@/core/consts.js";
-import { SchemaValidationError } from "@/core/errors.js";
+import { ConfigInvalidError, SchemaValidationError } from "@/core/errors.js";
 import type { Entity } from "@/core/resources/entity/schema.js";
 import { EntitySchema } from "@/core/resources/entity/schema.js";
 import { pathExists, readJsonFile } from "@/core/utils/fs.js";
@@ -33,6 +33,24 @@ export async function readAllEntities(entitiesDir: string): Promise<Entity[]> {
   const entities = await Promise.all(
     files.map((filePath) => readEntityFile(filePath)),
   );
+
+  const names = new Set<string>();
+  for (const entity of entities) {
+    if (names.has(entity.name)) {
+      throw new ConfigInvalidError(
+        `Duplicate entity name "${entity.name}" in ${entitiesDir}`,
+        entitiesDir,
+        {
+          hints: [
+            {
+              message: `Remove duplicate entities with name "${entity.name}" - only one entity per name is allowed`,
+            },
+          ],
+        },
+      );
+    }
+    names.add(entity.name);
+  }
 
   return entities;
 }
