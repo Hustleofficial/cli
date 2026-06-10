@@ -6,7 +6,7 @@ import {
   ConfigNotFoundError,
   SchemaValidationError,
 } from "@/core/errors.js";
-import { findProjectRoot } from "@/core/project/config.js";
+import { findProjectRoot } from "@/core/project/find-root.js";
 import type { AppConfig } from "@/core/project/schema.js";
 import { AppConfigSchema } from "@/core/project/schema.js";
 import { readJsonFile, writeFile } from "@/core/utils/fs.js";
@@ -43,7 +43,7 @@ export async function initAppConfig(): Promise<CachedAppConfig> {
     return cache;
   }
 
-  const projectRoot = await findProjectRoot();
+  const projectRoot = findProjectRoot();
   if (!projectRoot) {
     throw new ConfigNotFoundError(
       "No Base44 project found. Run this command from a project directory with a config.jsonc file.",
