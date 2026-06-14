@@ -4,7 +4,7 @@ import type { KyResponse } from "ky";
 import { extract } from "tar";
 import { base44Client, getAppClient } from "@/core/clients/index.js";
 import { ApiError, SchemaValidationError } from "@/core/errors.js";
-import { getAppConfig } from "@/core/project/app-config.js";
+import { getAppContext } from "@/core/project/app-config.js";
 import type { ProjectsResponse } from "@/core/project/schema.js";
 import {
   CreateProjectResponseSchema,
@@ -100,8 +100,8 @@ export async function getAppUserToken(): Promise<string> {
   }
 }
 
-export async function getSiteUrl(projectId?: string): Promise<string> {
-  const id = projectId ?? getAppConfig().id;
+export async function getSiteUrl(): Promise<string> {
+  const id = getAppContext().id;
 
   let response: Response;
   try {
