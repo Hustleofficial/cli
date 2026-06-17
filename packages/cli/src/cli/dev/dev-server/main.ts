@@ -9,6 +9,7 @@ import { dir } from "tmp-promise";
 import { createDevLogger } from "@/cli/dev/createDevLogger.js";
 import { FunctionManager } from "@/cli/dev/dev-server/function-manager.js";
 import { createFunctionRouter } from "@/cli/dev/dev-server/routes/functions.js";
+import { theme } from "@/cli/utils/index.js";
 import type { ProjectData } from "@/core/project/types.js";
 import { Database } from "./db/database.js";
 import {
@@ -23,6 +24,7 @@ import {
   createFileToken,
   createIntegrationRoutes,
 } from "./routes/integrations.js";
+import { ServeRunner } from "./serve-runner.js";
 import { WatchBase44 } from "./watcher.js";
 
 const DEFAULT_PORT = 4400;
@@ -30,19 +32,21 @@ const BASE44_APP_URL = "https://base44.app";
 
 interface DevServerOptions {
   log: Logger;
-  cwd: string;
   port?: number;
   denoWrapperPath: string;
+  appId?: string;
   loadResources: () => Promise<{
     functions: ProjectData["functions"];
     entities: ProjectData["entities"];
     project: ProjectData["project"];
+    siteUrl?: string;
   }>;
 }
 
 interface DevServerResult {
   port: number;
   server: Server;
+  isServingFrontend: boolean;
 }
 
 export async function createDevServer(
@@ -58,7 +62,8 @@ export async function createDevServer(
     }));
   const baseUrl = `http://localhost:${port}`;
 
-  const { functions, entities, project } = await options.loadResources();
+  const { functions, entities, project, siteUrl } =
+    await options.loadResources();
 
   const app = express();
 
@@ -85,7 +90,7 @@ export async function createDevServer(
     next();
   });
 
-  const devLogger = createDevLogger();
+  const devLogger = createDevLogger("backend", theme.styles.info);
 
   const functionManager = new FunctionManager(
     functions,
@@ -96,7 +101,7 @@ export async function createDevServer(
   app.use("/api/apps/:appId/functions", functionRoutes);
 
   if (functionManager.getFunctionNames().length > 0) {
-    options.log.info(
+    devLogger.log(
       `Loaded functions: ${functionManager.getFunctionNames().join(", ")}`,
     );
   }
@@ -104,7 +109,7 @@ export async function createDevServer(
   const db = new Database();
   await db.load(entities);
   if (db.getCollectionNames().length > 0) {
-    options.log.info(`Loaded entities: ${db.getCollectionNames().join(", ")}`);
+    devLogger.log(`Loaded entities: ${db.getCollectionNames().join(", ")}`);
   }
 
   // Socket.IO is attached after the HTTP server starts; entity routes receive
@@ -156,6 +161,14 @@ export async function createDevServer(
   app.use("/api/apps/:appId/integrations/custom", customIntegrationRoutes);
 
   app.use((req, res, next) => {
+    if (siteUrl && (req.path === "/login" || req.path.startsWith("/login/"))) {
+      const targetUrl = new URL(req.originalUrl, siteUrl);
+      devLogger.warn(
+        `"${req.originalUrl}" requires hosted login, redirecting to ${targetUrl.toString()}`,
+      );
+      res.redirect(targetUrl.toString());
+      return;
+    }
     // `analytics/track/batch` call is very common and makes logs unreadable while not providing informative value for the user
     if (!req.originalUrl.endsWith("analytics/track/batch")) {
       devLogger.warn(
@@ -232,14 +245,69 @@ export async function createDevServer(
   });
   await base44ConfigWatcher.start();
 
-  const shutdown = async () => {
+  // Run the frontend dev server when the project configures a `site.serveCommand`
+  // and we have an app id to inject. It runs from the project root.
+  const serveCommand = project.site?.serveCommand;
+  let serveRunner: ServeRunner | undefined;
+  if (options.appId && serveCommand) {
+    serveRunner = new ServeRunner({
+      command: serveCommand,
+      cwd: project.root,
+      env: {
+        VITE_BASE44_APP_ID: options.appId,
+        VITE_BASE44_APP_BASE_URL: baseUrl,
+      },
+      logger: createDevLogger("frontend", theme.colors.base44Orange),
+    });
+  }
+
+  const handleShutdownError = (error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    devLogger.error(`Failed to shut down dev server: ${errorMessage}`);
+  };
+
+  const closeServerIfRunning = async () => {
+    if (!server.listening) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  };
+
+  const runShutdown = async () => {
     base44ConfigWatcher.close();
-    io.close();
+    await io.close();
     await functionManager.stopAll();
-    server.close();
+    await serveRunner?.stop();
+    await closeServerIfRunning();
+  };
+
+  let shutdownPromise: Promise<void> | undefined;
+  const shutdown = () => {
+    shutdownPromise ??= runShutdown().catch(handleShutdownError);
+    return shutdownPromise;
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  return { port, server };
+  // If the frontend dies, tear the whole dev environment down.
+  serveRunner?.onExit(() => {
+    void shutdown().finally(() => process.exit(1));
+  });
+
+  if (serveRunner) {
+    devLogger.log(`Backend running on ${baseUrl}`);
+    serveRunner.start();
+  }
+
+  return { port, server, isServingFrontend: serveRunner !== undefined };
 }
