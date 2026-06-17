@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execa } from "execa";
@@ -14,6 +14,7 @@ type TestRunnerMode = "npm" | "binary";
 
 const TEST_RUNNER: TestRunnerMode =
   (process.env.CLI_TEST_RUNNER as TestRunnerMode) || "npm";
+const BASE44_APP_ID_ENV_VAR = "BASE44_APP_ID";
 
 /** Resolve the platform-specific compiled binary path */
 function getBinaryPath(): string {
@@ -49,7 +50,6 @@ interface TestOverrides {
 
 export class CLITestkit {
   private tempDir: string;
-  private cleanupFn: () => Promise<void>;
   private env: Record<string, string> = {};
   private projectDir?: string;
   // Default latestVersion to null to skip npm version check in tests
@@ -60,13 +60,8 @@ export class CLITestkit {
   /** Real HTTP server for Base44 API endpoints */
   readonly api: TestAPIServer;
 
-  private constructor(
-    tempDir: string,
-    cleanupFn: () => Promise<void>,
-    api: TestAPIServer,
-  ) {
+  private constructor(tempDir: string, api: TestAPIServer) {
     this.tempDir = tempDir;
-    this.cleanupFn = cleanupFn;
     this.api = api;
     // Set HOME to temp dir for auth file isolation
     // On Windows, os.homedir() reads USERPROFILE, so set both
@@ -86,10 +81,10 @@ export class CLITestkit {
 
   /** Factory method - creates isolated test environment */
   static async create(appId = "test-app-id"): Promise<CLITestkit> {
-    const { path, cleanup } = await dir({ unsafeCleanup: true });
+    const { path } = await dir({ unsafeCleanup: true });
     const api = new TestAPIServer(appId);
     await api.start();
-    return new CLITestkit(path, cleanup, api);
+    return new CLITestkit(path, api);
   }
 
   /** Get the temp directory path */
@@ -147,8 +142,9 @@ export class CLITestkit {
   async run(...args: string[]): Promise<CLIResult> {
     this.setupEnvOverrides();
 
-    const env: Record<string, string> = {
+    const env: Record<string, string | undefined> = {
       ...this.env,
+      [BASE44_APP_ID_ENV_VAR]: this.env[BASE44_APP_ID_ENV_VAR],
       BASE44_API_URL: this.api.baseUrl,
       PATH: process.env.PATH ?? "",
     };
@@ -182,8 +178,9 @@ export class CLITestkit {
   async runLive(...args: string[]): Promise<RunLiveHandle> {
     this.setupEnvOverrides();
 
-    const env: Record<string, string> = {
+    const env: Record<string, string | undefined> = {
       ...this.env,
+      [BASE44_APP_ID_ENV_VAR]: this.env[BASE44_APP_ID_ENV_VAR],
       BASE44_API_URL: this.api.baseUrl,
       PATH: process.env.PATH ?? "",
     };
@@ -341,6 +338,13 @@ export class CLITestkit {
     }
     this.liveHandles = [];
     await this.api.stop();
-    await this.cleanupFn();
+    // Use maxRetries to handle Windows EBUSY: child processes (e.g. Deno)
+    // release file handles asynchronously after exit.
+    await rm(this.tempDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 300,
+    });
   }
 }
