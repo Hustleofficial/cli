@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { Option } from "commander";
+import ms, { type StringValue } from "ms";
 import type { CLIContext, RunCommandResult } from "@/cli/types.js";
 import { Base44Command } from "@/cli/utils/index.js";
 import { ApiError, InvalidInputError } from "@/core/errors.js";
@@ -70,6 +71,10 @@ function parseFunctionNames(option: string | undefined): string[] {
 }
 
 function normalizeDatetime(value: string): string {
+  const duration = ms(value as StringValue);
+  if (duration !== undefined) {
+    return new Date(Date.now() - duration).toISOString();
+  }
   if (/Z$|[+-]\d{2}:\d{2}$/.test(value)) return value;
   return `${value}Z`;
 }
@@ -143,8 +148,9 @@ async function fetchLogsForFunctions(
       throw error;
     }
 
-    const entries = logs.map((entry) => normalizeLogEntry(entry, functionName));
-    allEntries.push(...entries);
+    allEntries.push(
+      ...logs.map((entry) => normalizeLogEntry(entry, functionName)),
+    );
   }
 
   // When fetching multiple functions, merge-sort the combined results
@@ -216,7 +222,11 @@ async function logsAction(
     ? `${JSON.stringify(entries, null, 2)}\n`
     : formatLogs(entries);
 
-  return { outroMessage: "Fetched logs", stdout: logsOutput };
+  const shouldOutputOutroMessage = !options.json;
+  return {
+    outroMessage: shouldOutputOutroMessage ? "Fetched logs" : undefined,
+    stdout: logsOutput,
+  };
 }
 
 export function getLogsCommand(): Command {
@@ -228,12 +238,12 @@ export function getLogsCommand(): Command {
     )
     .option(
       "--since <datetime>",
-      "Show logs from this time (ISO format)",
+      "Show logs from this time. ISO datetime or relative shorthand (e.g. 1h, 30m, 2d)",
       normalizeDatetime,
     )
     .option(
       "--until <datetime>",
-      "Show logs until this time (ISO format)",
+      "Show logs until this time. ISO datetime or relative shorthand (e.g. 1h, 30m, 2d)",
       normalizeDatetime,
     )
     .addOption(
@@ -245,5 +255,6 @@ export function getLogsCommand(): Command {
     .addOption(
       new Option("--order <order>", "Sort order").choices(["asc", "desc"]),
     )
+    .option("--json", "Output as JSON (clean stdout, safe to pipe to jq)")
     .action(logsAction);
 }
