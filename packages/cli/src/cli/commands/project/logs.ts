@@ -8,10 +8,12 @@ import { readProjectConfig } from "@/core/index.js";
 import type {
   FunctionLogFilters,
   FunctionLogsResponse,
+  LogEnv,
   LogLevel,
 } from "@/core/resources/function/index.js";
 import {
   fetchFunctionLogs,
+  LogEnvSchema,
   LogLevelSchema,
   listDeployedFunctions,
 } from "@/core/resources/function/index.js";
@@ -23,7 +25,7 @@ interface LogsOptions {
   level?: string;
   limit?: string;
   order?: string;
-  json?: boolean;
+  env?: LogEnv;
 }
 
 /**
@@ -59,6 +61,10 @@ function parseFunctionFilters(options: LogsOptions): FunctionLogFilters {
     filters.order = options.order.toLowerCase() as "asc" | "desc";
   }
 
+  if (options.env) {
+    filters.env = options.env;
+  }
+
   return filters;
 }
 
@@ -89,8 +95,11 @@ function formatEntry(entry: LogEntry): string {
 /**
  * Build function logs output (log-file style).
  */
-function formatLogs(entries: LogEntry[]): string {
+function formatLogs(entries: LogEntry[], env: LogEnv): string {
   if (entries.length === 0) {
+    if (env === "prod") {
+      return "No production logs found. Has this app been published? Try --env preview to see draft logs.\n";
+    }
     return "No logs found matching the filters.\n";
   }
 
@@ -218,11 +227,12 @@ async function logsAction(
     entries = entries.slice(0, limit);
   }
 
-  const logsOutput = options.json
+  const env = options.env ?? "preview";
+  const logsOutput = ctx.jsonMode
     ? `${JSON.stringify(entries, null, 2)}\n`
-    : formatLogs(entries);
+    : formatLogs(entries, env);
 
-  const shouldOutputOutroMessage = !options.json;
+  const shouldOutputOutroMessage = !ctx.jsonMode;
   return {
     outroMessage: shouldOutputOutroMessage ? "Fetched logs" : undefined,
     stdout: logsOutput,
@@ -255,6 +265,11 @@ export function getLogsCommand(): Command {
     .addOption(
       new Option("--order <order>", "Sort order").choices(["asc", "desc"]),
     )
-    .option("--json", "Output as JSON (clean stdout, safe to pipe to jq)")
+    .addOption(
+      new Option(
+        "--env <env>",
+        "Which deployment to read logs from: preview (current draft) or prod (published). Default: preview",
+      ).choices([...LogEnvSchema.options]),
+    )
     .action(logsAction);
 }
