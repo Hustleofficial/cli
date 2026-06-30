@@ -26,12 +26,13 @@ interface LogsOptions {
   limit?: string;
   order?: string;
   env?: LogEnv;
+  follow?: boolean;
 }
 
 /**
  * Unified log entry for display.
  */
-interface LogEntry {
+export interface LogEntry {
   time: string;
   level: string;
   message: string;
@@ -90,6 +91,71 @@ function formatEntry(entry: LogEntry): string {
   const level = entry.level.toUpperCase().padEnd(5);
   const message = entry.message.trim();
   return `${time} ${level} ${message}`;
+}
+
+export interface FollowState {
+  lastTime: string;
+  boundaryKeys: Set<string>;
+}
+
+function entryKey(entry: LogEntry): string {
+  return `${entry.time} ${entry.message}`;
+}
+
+export function selectNewEntries(
+  entries: LogEntry[],
+  state: FollowState,
+): { fresh: LogEntry[]; nextState: FollowState } {
+  const fresh = entries.filter((e) => {
+    if (e.time < state.lastTime) return false;
+    if (e.time === state.lastTime && state.boundaryKeys.has(entryKey(e))) {
+      return false;
+    }
+    return true;
+  });
+
+  if (fresh.length === 0) return { fresh, nextState: state };
+
+  const newMax = fresh.reduce(
+    (max, e) => (e.time > max ? e.time : max),
+    state.lastTime,
+  );
+  const boundaryKeys =
+    newMax === state.lastTime ? new Set(state.boundaryKeys) : new Set<string>();
+  for (const e of fresh) {
+    if (e.time === newMax) boundaryKeys.add(entryKey(e));
+  }
+  return { fresh, nextState: { lastTime: newMax, boundaryKeys } };
+}
+
+function writeFollowLine(entry: LogEntry, jsonMode: boolean): void {
+  const line = jsonMode ? JSON.stringify(entry) : formatEntry(entry);
+  process.stdout.write(`${line}\n`);
+}
+
+async function followLogs(
+  functionNames: string[],
+  options: LogsOptions,
+  availableFunctionNames: string[],
+  jsonMode: boolean,
+): Promise<never> {
+  let state: FollowState = { lastTime: "", boundaryKeys: new Set() };
+  let first = true;
+
+  while (true) {
+    const pollOptions = first ? options : { ...options, since: state.lastTime };
+    const entries = await fetchLogsForFunctions(
+      functionNames,
+      pollOptions,
+      availableFunctionNames,
+    );
+    const { fresh, nextState } = selectNewEntries(entries, state);
+    state = nextState;
+    fresh.sort((a, b) => a.time.localeCompare(b.time));
+    for (const entry of fresh) writeFollowLine(entry, jsonMode);
+    first = false;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
 }
 
 /**
@@ -215,6 +281,26 @@ async function logsAction(
     };
   }
 
+  if (options.follow) {
+    if (options.until) {
+      throw new InvalidInputError(
+        "--until cannot be combined with --follow (a stream has no end).",
+      );
+    }
+    if (options.order) {
+      throw new InvalidInputError(
+        "--order cannot be combined with --follow (a live tail always streams oldest to newest).",
+      );
+    }
+    options.order = "asc"; // tail reads oldest -> newest
+    return followLogs(
+      functionNames,
+      options,
+      availableFunctionNames,
+      ctx.jsonMode,
+    );
+  }
+
   let entries = await fetchLogsForFunctions(
     functionNames,
     options,
@@ -262,6 +348,7 @@ export function getLogsCommand(): Command {
         .hideHelp(),
     )
     .option("-n, --limit <n>", "Results per page (1-1000, default: 50)")
+    .option("-f, --follow", "Stream new logs as they arrive")
     .addOption(
       new Option("--order <order>", "Sort order").choices(["asc", "desc"]),
     )

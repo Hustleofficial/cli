@@ -1,5 +1,76 @@
 import { describe, expect, it } from "vitest";
+import {
+  type FollowState,
+  type LogEntry,
+  selectNewEntries,
+} from "@/cli/commands/project/logs.js";
 import { fixture, setupCLITests } from "./testkit/index.js";
+
+function entry(time: string, message: string): LogEntry {
+  return { time, level: "info", message, source: "fn" };
+}
+
+describe("selectNewEntries (follow dedup)", () => {
+  const empty: FollowState = { lastTime: "", boundaryKeys: new Set() };
+
+  it("returns all entries on the first poll and tracks the boundary", () => {
+    const entries = [
+      entry("2024-01-15T10:00:00Z", "a"),
+      entry("2024-01-15T10:00:01Z", "b"),
+    ];
+    const { fresh, nextState } = selectNewEntries(entries, empty);
+
+    expect(fresh).toHaveLength(2);
+    expect(nextState.lastTime).toBe("2024-01-15T10:00:01Z");
+    expect(nextState.boundaryKeys.has("2024-01-15T10:00:01Z b")).toBe(true);
+  });
+
+  it("drops entries already shown at the boundary timestamp", () => {
+    const first = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b")],
+      empty,
+    ).nextState;
+
+    const { fresh, nextState } = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b"), entry("2024-01-15T10:00:02Z", "c")],
+      first,
+    );
+
+    expect(fresh.map((e) => e.message)).toEqual(["c"]);
+    expect(nextState.lastTime).toBe("2024-01-15T10:00:02Z");
+  });
+
+  it("keeps a new entry sharing the boundary timestamp", () => {
+    const first = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b")],
+      empty,
+    ).nextState;
+
+    const { fresh, nextState } = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b"), entry("2024-01-15T10:00:01Z", "b2")],
+      first,
+    );
+
+    expect(fresh.map((e) => e.message)).toEqual(["b2"]);
+    expect(nextState.boundaryKeys.has("2024-01-15T10:00:01Z b")).toBe(true);
+    expect(nextState.boundaryKeys.has("2024-01-15T10:00:01Z b2")).toBe(true);
+  });
+
+  it("returns nothing and preserves state when no new entries arrive", () => {
+    const first = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b")],
+      empty,
+    ).nextState;
+
+    const { fresh, nextState } = selectNewEntries(
+      [entry("2024-01-15T10:00:01Z", "b")],
+      first,
+    );
+
+    expect(fresh).toHaveLength(0);
+    expect(nextState).toBe(first);
+  });
+});
 
 describe("logs command", () => {
   const t = setupCLITests();
@@ -192,6 +263,38 @@ describe("logs command", () => {
 
     t.expectResult(result).toSucceed();
     t.expectResult(result).toContain("No production logs found");
+  });
+
+  it("rejects --follow combined with --order", async () => {
+    await t.givenLoggedInWithProject(fixture("basic"));
+
+    const result = await t.run(
+      "logs",
+      "--function",
+      "my-function",
+      "--follow",
+      "--order",
+      "asc",
+    );
+
+    t.expectResult(result).toFail();
+    t.expectResult(result).toContain("--order cannot be combined");
+  });
+
+  it("rejects --follow combined with --until", async () => {
+    await t.givenLoggedInWithProject(fixture("basic"));
+
+    const result = await t.run(
+      "logs",
+      "--function",
+      "my-function",
+      "--follow",
+      "--until",
+      "1h",
+    );
+
+    t.expectResult(result).toFail();
+    t.expectResult(result).toContain("--until cannot be combined");
   });
 
   it("rejects an invalid --env value", async () => {
