@@ -1,6 +1,7 @@
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { globby } from "globby";
 import {
+  BACKEND_FILE_GLOB,
   ENTRY_FILE_GLOB,
   ENTRY_IGNORE_DOT_PATHS,
   FUNCTION_CONFIG_GLOB,
@@ -17,6 +18,19 @@ import type {
 import { FunctionConfigSchema } from "@/core/resources/function/schema.js";
 import { pathExists, readJsonFile } from "@/core/utils/fs.js";
 
+/**
+ * Collect every file under `base44/shared/`. These are uploaded alongside each
+ * function so shared modules imported via `../../shared/...` bundle server-side.
+ * The bundler tree-shakes anything a given function doesn't import.
+ */
+async function readSharedFiles(functionsDir: string): Promise<string[]> {
+  const sharedDir = resolve(functionsDir, "..", "shared");
+  if (!(await pathExists(sharedDir))) {
+    return [];
+  }
+  return globby(BACKEND_FILE_GLOB, { cwd: sharedDir, absolute: true });
+}
+
 async function readFunctionConfig(configPath: string): Promise<FunctionConfig> {
   const parsed = await readJsonFile(configPath);
   const result = FunctionConfigSchema.safeParse(parsed);
@@ -32,7 +46,10 @@ async function readFunctionConfig(configPath: string): Promise<FunctionConfig> {
   return result.data;
 }
 
-async function readFunction(configPath: string): Promise<BackendFunction> {
+async function readFunction(
+  configPath: string,
+  sharedFiles: string[],
+): Promise<BackendFunction> {
   const config = await readFunctionConfig(configPath);
   const functionDir = dirname(configPath);
   const entryPath = join(functionDir, config.entry);
@@ -46,15 +63,17 @@ async function readFunction(configPath: string): Promise<BackendFunction> {
     );
   }
 
-  const filePaths = await globby("**/*.{js,ts,json}", {
+  const filePaths = await globby(BACKEND_FILE_GLOB, {
     cwd: functionDir,
     absolute: true,
   });
 
+  const allFilePaths = [...new Set([...filePaths, ...sharedFiles])];
+
   const functionData: BackendFunction = {
     ...config,
     entryPath,
-    filePaths,
+    filePaths: allFilePaths,
     source: { type: "project" },
   };
   return functionData;
@@ -84,17 +103,21 @@ export async function readAllFunctions(
     (entryFile) => !configFilesDirs.has(dirname(entryFile)),
   );
 
+  const sharedFiles = await readSharedFiles(functionsDir);
+
   const functionsFromConfig = await Promise.all(
-    configFiles.map((configPath) => readFunction(configPath)),
+    configFiles.map((configPath) => readFunction(configPath, sharedFiles)),
   );
 
   const functionsWithoutConfig = await Promise.all(
     entryFilesWithoutConfig.map(async (entryFile) => {
       const functionDir = dirname(entryFile);
-      const filePaths = await globby("**/*.{js,ts,json}", {
+      const filePaths = await globby(BACKEND_FILE_GLOB, {
         cwd: functionDir,
         absolute: true,
       });
+
+      const allFilePaths = [...new Set([...filePaths, ...sharedFiles])];
 
       const name = relative(functionsDir, functionDir).split(/[/\\]/).join("/");
       if (!name) {
@@ -115,7 +138,7 @@ export async function readAllFunctions(
         name,
         entry,
         entryPath: entryFile,
-        filePaths,
+        filePaths: allFilePaths,
         source: { type: "project" },
       };
       return functionData;

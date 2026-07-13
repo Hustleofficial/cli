@@ -96,4 +96,75 @@ describe("readAllFunctions", () => {
       /Duplicate function name "same-name"/,
     );
   });
+
+  it("uploads base44/shared/ files with every function", async () => {
+    const functionsDir = resolve(
+      FIXTURES_DIR,
+      "function-shared-imports/base44/functions",
+    );
+    const result = await readAllFunctions(functionsDir);
+
+    expect(result).toHaveLength(3); // greet, farewell, hello-sibling
+
+    for (const fn of result) {
+      const hasShared = fn.filePaths.some((p) =>
+        fwd(p).endsWith("shared/response.ts"),
+      );
+      expect(hasShared, `${fn.name} should include shared/response.ts`).toBe(
+        true,
+      );
+
+      // .jsonc shared files are uploaded too
+      const hasJsonc = fn.filePaths.some((p) =>
+        fwd(p).endsWith("shared/constants.jsonc"),
+      );
+      expect(hasJsonc, `${fn.name} should include shared/constants.jsonc`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("includes sibling files from the function directory alongside shared", async () => {
+    const functionsDir = resolve(
+      FIXTURES_DIR,
+      "function-shared-imports/base44/functions",
+    );
+    const result = await readAllFunctions(functionsDir);
+    const fn = result.find((f) => f.name === "hello-sibling");
+    expect(fn).toBeDefined();
+
+    // util.ts is a same-dir sibling picked up by the function-dir glob
+    const hasUtil = fn!.filePaths.some((p) =>
+      fwd(p).endsWith("hello-sibling/util.ts"),
+    );
+    expect(hasUtil, "sibling util.ts should be included").toBe(true);
+
+    // shared/response.ts is included because the whole shared dir is uploaded
+    const hasShared = fn!.filePaths.some((p) =>
+      fwd(p).endsWith("shared/response.ts"),
+    );
+    expect(hasShared, "shared/response.ts should be included").toBe(true);
+  });
+
+  it("shared file uses the function-dir-relative deploy path", async () => {
+    const functionsDir = resolve(
+      FIXTURES_DIR,
+      "function-shared-imports/base44/functions",
+    );
+    const result = await readAllFunctions(functionsDir);
+    const greet = result.find((f) => f.name === "greet");
+    expect(greet).toBeDefined();
+
+    const sharedPath = greet!.filePaths.find((p) =>
+      fwd(p).endsWith("shared/response.ts"),
+    );
+    expect(sharedPath).toBeDefined();
+
+    // deploy.ts uses relative(functionDir, filePath) — verify the expected relative path
+    const { dirname: pathDirname, relative: pathRelative } = await import(
+      "node:path"
+    );
+    const rel = fwd(pathRelative(pathDirname(greet!.entryPath), sharedPath!));
+    expect(rel).toBe("../../shared/response.ts");
+  });
 });
