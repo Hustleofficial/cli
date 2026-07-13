@@ -73,6 +73,9 @@ export async function deployAction(
   if (authConfig.length > 0) {
     summaryLines.push("  - Auth config");
   }
+  if (project.visibility) {
+    summaryLines.push(`  - Visibility: ${project.visibility}`);
+  }
   if (project.site?.outputDirectory) {
     summaryLines.push(`  - Site from ${project.site.outputDirectory}`);
   }
@@ -99,6 +102,9 @@ export async function deployAction(
   const functionTotal = functions.length;
 
   const result = await deployAll(projectData, {
+    onVisibilitySet: (level) => {
+      log.success(`App visibility set to ${level}`);
+    },
     onFunctionStart: (names) => {
       const label = names.length === 1 ? names[0] : `${names.length} functions`;
       log.step(
