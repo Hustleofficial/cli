@@ -10,6 +10,8 @@ import { readAuth } from "@/core/index.js";
 interface ExecOptions {
   local?: boolean;
   port?: string;
+  privileged?: boolean;
+  dataEnv?: string;
 }
 
 function readStdin(): Promise<string> {
@@ -91,7 +93,13 @@ async function execAction(
       )
     : undefined;
 
-  const { exitCode } = await runScript({ appId: app!.id, code, local });
+  const { exitCode } = await runScript({
+    appId: app!.id,
+    code,
+    local,
+    privileged: options.privileged,
+    dataEnv: options.dataEnv,
+  });
 
   if (exitCode !== 0) {
     process.exitCode = exitCode;
@@ -113,6 +121,14 @@ export function getExecCommand(): Command {
       "--port <number>",
       `Port the local dev server is on (with --local; defaults to ${DEFAULT_DEV_SERVER_PORT})`,
     )
+    .option(
+      "--privileged",
+      "Run with admin privileges (bypass RLS). Requires app owner/editor role.",
+    )
+    .option(
+      "--data-env <environment>",
+      "Data environment to run against (e.g. dev, prod)",
+    )
     .addHelpText(
       "after",
       `
@@ -124,7 +140,10 @@ Examples:
     $ echo "const users = await base44.entities.User.list()" | base44 exec
 
   Against the local dev server (base44 dev must be running):
-    $ echo "await base44.entities.Task.create({ title: 'seed' })" | base44 exec --local`,
+    $ echo "await base44.entities.Task.create({ title: 'seed' })" | base44 exec --local
+
+  With privileged access (bypass RLS):
+    $ echo "const all = await base44.entities.Task.list()" | base44 exec --privileged`,
     )
     .action(execAction);
 }
