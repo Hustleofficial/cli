@@ -161,6 +161,20 @@ describe("readProjectConfig", () => {
     );
   });
 
+  it("reads project with agent skills", async () => {
+    const result = await readProjectConfig(
+      resolve(FIXTURES_DIR, "with-agent-skills"),
+    );
+
+    expect(result.agentSkills).toEqual([
+      {
+        name: "weekly-report",
+        description: "Summarize the week.",
+        body: "Read tasks from the last 7 days and group them.",
+      },
+    ]);
+  });
+
   // Error cases
   it("throws when no config file exists", async () => {
     await expect(
@@ -190,6 +204,12 @@ describe("readProjectConfig", () => {
     await expect(
       readProjectConfig(resolve(FIXTURES_DIR, "invalid-agent")),
     ).rejects.toThrow();
+  });
+
+  it("throws on invalid agent skill file", async () => {
+    await expect(
+      readProjectConfig(resolve(FIXTURES_DIR, "invalid-agent-skill")),
+    ).rejects.toThrow(/Invalid skill file/);
   });
 
   it("throws on duplicate agent names", async () => {

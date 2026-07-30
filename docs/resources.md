@@ -1,8 +1,8 @@
 # Working with Resources
 
-**Keywords:** resource, entity, function, agent, connector, push, readAll, deploy, site, tar.gz, deployAll, ProjectData
+**Keywords:** resource, entity, function, agent, agent skill, connector, push, readAll, deploy, site, tar.gz, deployAll, ProjectData
 
-Resources are project-specific collections (entities, functions, agents, connectors) that can be read from the filesystem and pushed to the Base44 API.
+Resources are project-specific collections (entities, functions, agents, agent skills, connectors) that can be read from the filesystem and pushed to the Base44 API.
 
 ## Resource Interface
 
@@ -70,6 +70,10 @@ Deploy ships file contents verbatim — the source is never parsed or linted —
 
 Entry files may also import `secrets` and `waitUntil` from `base44:runtime`. Locally, `base44 dev` runs functions on workerd via Miniflare by default — each function is bundled with esbuild + `@deno/loader` (`src/cli/dev/dev-server/function-bundler.ts`), with `base44:runtime` served as a virtual module, secrets as real Worker env bindings and `waitUntil` riding `ctx.waitUntil`. A fallback runtime covers installations where workerd is unavailable (compiled binaries, `B44_DEV_FUNCTIONS_RUNTIME=deno`) and supplies `base44:runtime` via an import map. A project-level `deno.json` import map is not applied to functions — locally or deployed — since only files under `base44/` are uploaded. See [`packages/cli/backend-runtime/README.md`](../packages/cli/backend-runtime/README.md) for the local implementation and its intentional differences from production.
 
+## Agent skills
+
+Agent skills are app-scoped instruction snippets shared across the app's agents. Unlike other resources they are stored as one markdown file per skill under the agent-skills directory (`base44/agent-skills/`, or `agentSkillsDir` in `config.jsonc`): the filename (without `.md`) is the skill name, the frontmatter `description` is the summary, and the body is the instruction text. Agents reference skills by name via `selected_skill_names`; `selected_workspace_skill_ids` (org-shared workspace skills) is not managed here and is passed through pull/push/deploy untouched.
+
 ## Site Module (Not a Resource)
 
 The site module at `packages/cli/src/core/site/` handles deploying built frontend files. It follows a different pattern than resources:
@@ -109,9 +113,10 @@ const { appUrl } = await deployAll(projectData);
 What it deploys (in order):
 1. Entities (via `entityResource.push()`)
 2. Functions (via `functionResource.push()`)
-3. Agents (via `agentResource.push()`)
-4. Connectors (via `pushConnectors()`) -- may return OAuth redirect URLs
-5. Site (if `site.outputDirectory` is configured)
+3. Agent skills (via `agentSkillResource.push()`)
+4. Agents (via `agentResource.push()`)
+5. Connectors (via `pushConnectors()`) -- may return OAuth redirect URLs
+6. Site (if `site.outputDirectory` is configured)
 
 ```bash
 base44 deploy        # With confirmation prompt
