@@ -6,6 +6,7 @@ import {
   promptOAuthFlows,
 } from "@/cli/commands/connectors/oauth-prompt.js";
 import { formatDeployResult } from "@/cli/commands/functions/formatDeployResult.js";
+import { maybeBuildBeforeDeploy } from "@/cli/commands/project/site-build.js";
 import type { CLIContext, RunCommandResult } from "@/cli/types.js";
 import {
   Base44Command,
@@ -26,13 +27,15 @@ import type {
 
 interface DeployOptions {
   yes?: boolean;
+  build?: boolean;
   projectRoot?: string;
 }
 
 export async function deployAction(
-  { isNonInteractive, log }: CLIContext,
+  ctx: CLIContext,
   options: DeployOptions = {},
 ): Promise<RunCommandResult> {
+  const { isNonInteractive, log } = ctx;
   if (isNonInteractive && !options.yes) {
     throw new InvalidInputError("--yes is required in non-interactive mode");
   }
@@ -97,6 +100,8 @@ export async function deployAction(
     log.info(`Deploying:\n${summaryLines.join("\n")}`);
   }
 
+  await maybeBuildBeforeDeploy(ctx, project, options.build);
+
   // Deploy resources with per-function progress
   let functionCompleted = 0;
   const functionTotal = functions.length;
@@ -145,6 +150,8 @@ export function getDeployCommand(): Command {
       "Deploy all project resources (entities, functions, agents, connectors, and site)",
     )
     .option("-y, --yes", "Skip confirmation prompt")
+    .option("--build", "Build the site before deploying (skips the prompt)")
+    .option("--no-build", "Deploy without building (skips the prompt)")
     .action(deployAction);
 }
 
