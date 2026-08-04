@@ -76,17 +76,21 @@ Agent skills are app-scoped instruction snippets shared across the app's agents.
 
 ## Site Module (Not a Resource)
 
-The site module at `packages/cli/src/core/site/` handles deploying built frontend files. It follows a different pattern than resources:
+The site module at `packages/cli/src/core/site/` handles deploying an app's built output. It follows a different pattern than resources — there is no item list, so no `readAll`/`push`.
 
-- Reads built artifacts (JS, CSS, HTML) from the output directory
-- Gets configuration from `site.outputDirectory` in project config
-- Creates a tar.gz archive and uploads it via `POST /api/apps/{app_id}/deploy-dist`
+It exposes **two ways to ship `site.outputDirectory`**, and the caller picks:
 
 ```typescript
-import { deploySite } from "@/core/site/index.js";
+import { deploySite, deployStaticSite } from "@/core/site/index.js";
 
-const { appUrl } = await deploySite("./dist");
+// Legacy: tar.gz the built files, POST /api/apps/{app_id}/deploy-dist
+const { appUrl } = await deploySite(outputDir);
+
+// Deployments API (env-gated lane, see deployments.md)
+const { deploymentId } = await deployStaticSite({ outputDir, gitHash });
 ```
+
+`base44 site deploy` chooses between them on whether `--git-hash` was passed; `base44 deploy` always uses `deploySite()` via `deployAll()`. The lane's own files are `gate.ts`, `manifest.ts`, `static-site.ts`, and `upload.ts`; both transports share the module's `api.ts` and `schema.ts`.
 
 ### Deploy Flow
 
@@ -116,7 +120,7 @@ What it deploys (in order):
 3. Agent skills (via `agentSkillResource.push()`)
 4. Agents (via `agentResource.push()`)
 5. Connectors (via `pushConnectors()`) -- may return OAuth redirect URLs
-6. Site (if `site.outputDirectory` is configured)
+6. Site (if `site.outputDirectory` is configured) — the legacy tar.gz upload. The env-gated deployments-API lane is reachable only from `base44 site deploy`, not from here (see [deployments.md](deployments.md)).
 
 ```bash
 base44 deploy        # With confirmation prompt
