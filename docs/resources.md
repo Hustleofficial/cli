@@ -40,6 +40,21 @@ export const entityResource: Resource<Entity> = {
 };
 ```
 
+## Client-side validation must match server-side validation
+
+A resource schema validates files the server wrote and will read back, so the
+server's validation is the contract — never be stricter than it. Anything stricter
+rejects an app the server accepts, and because `readProjectConfig()` reads every
+resource up front, one such file fails *every* command (`deploy`,
+`entities push/pull`, `functions deploy`) whether or not it touches that resource.
+A hand-derived entity schema once rejected a quarter of real publishes this way.
+
+So before adding or narrowing a rule, confirm the server rejects that shape too.
+Rejecting something the server cannot evaluate — an unsupported operator, or an
+operator where only exact equality is applied — is correct; that's a real defect,
+not strictness. `base44 dev` interprets these same files locally, so a schema
+change usually needs a matching change in `src/cli/dev/dev-server/db/`.
+
 ## Adding a New Resource
 
 1. Create folder: `packages/cli/src/core/resources/<name>/`
