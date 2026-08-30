@@ -76,6 +76,7 @@ interface S3AssetUploads {
 export const CreateDeploymentResponseSchema = z
   .object({
     deployment_id: z.string(),
+    session_id: z.string(),
     asset_uploads: z
       .object({
         type: z.literal("s3"),
@@ -96,9 +97,11 @@ export const CreateDeploymentResponseSchema = z
       data,
     ): {
       deploymentId: string;
+      sessionId: string;
       assetUploads: S3AssetUploads | null;
     } => ({
       deploymentId: data.deployment_id,
+      sessionId: data.session_id,
       assetUploads:
         data.asset_uploads == null
           ? null
